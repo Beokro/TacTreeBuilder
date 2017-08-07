@@ -2,7 +2,29 @@ filename = "../Lag/LacpAgent.tac"
 file = open(filename, "r")
 
 currentNameSpace = []
-currentLevel = []
+entityDict = {}
+
+class entity:
+    def __init__( self, name ):
+        self.name = name
+        self.inputOf = []
+        self.outputOf = []
+        self.memberOf = []
+
+    def isInputOf( self, name ):
+        self.inputOf.append( name )
+
+    def isOutputOf( self, name ):
+        self.outputOf.append( name )
+
+    def isMemberOf( self, name ):
+        self.memberOf.append( name )
+
+def getNameSpace():
+    prefix = ''
+    for namespace in currentNameSpace:
+        prefix += ( namespace + '::' )
+    return prefix
 
 # return extra line it read
 def skipIntro ( file ):
@@ -61,6 +83,14 @@ def isForwardDecl( words ):
     return len( words ) == 5 and words[ 2 ] == 'Tac::Type()' and\
         words[ 4 ] == 'Tac::Constrainer;';
 
+def isEntity( words ):
+    return len( words ) > 5 and words[ -1 ] == '{' and words[ -2 ] == 'Tac::Entity'
+
+def handleEntity( words ):
+    newEntity = entity( getNameSpace() + words[ 0 ] )
+    currentNameSpace.append( words[ 0 ] )
+    entityDict[ newEntity.name ] = newEntity
+
 def analyzeFile( file ):
     skipIntro( file )
     words = getCompleteLine( file )
@@ -69,6 +99,9 @@ def analyzeFile( file ):
             handleNameSpace( words )
         elif isForwardDecl( words ):
             pass
+        elif isEntity( words ):
+            handleEntity( words )
         words = getCompleteLine( file )
 
 analyzeFile( file )
+print entityDict
