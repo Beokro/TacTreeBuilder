@@ -9,6 +9,14 @@ currentNameSpace = []
 isRealNameSpace = []
 entityDict = {}
 
+def printHelper( title, memberList ):
+    str = title + ':\n'
+    for member in memberList:
+        str += member + '\n'
+    str += '\n'
+    return str
+
+
 class entity:
     def __init__( self, name ):
         self.name = name
@@ -40,6 +48,17 @@ class entity:
 
     def isMemberOf( self, name ):
         self.memberOf.append( name )
+
+    def __str__(self):
+        str = '\nEntity: ' + self.name + '\n'
+        str += printHelper( 'Method', self.methods )
+        str += printHelper( 'Input', self.inputs )
+        str += printHelper( 'Output', self.outputs )
+        str += printHelper( 'Member', self.members )
+        str += printHelper( 'InputOf', self.inputOf )
+        str += printHelper( 'Output', self.outputOf )
+        str += printHelper( 'isMemberOf', self.memberOf )
+        return str
 
 def checkOpenBracket( word ):
     if '{' in word:
@@ -227,6 +246,4 @@ def analyzeFile( file ):
 
 analyzeFile( file )
 
-print entityDict[ 'Lacp::Agent::AgentCreator' ].members
-print entityDict[ 'Lacp::Agent::AgentCreator' ].methods
-print entityDict
+print entityDict[ 'Lacp::Agent::AgentCreator' ]
