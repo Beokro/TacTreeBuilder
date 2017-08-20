@@ -1,21 +1,26 @@
 # Todo
-# check if entity already exist before adding it to Dict
+# build a relationship for the members of entity and reactor function being trigger
 
 filename = "../Lag/LacpAgent.tac"
 file = open(filename, "r")
 
 currentNameSpace = []
+isRealNameSpace = []
 entityDict = {}
 
 class entity:
     def __init__( self, name ):
         self.name = name
+        self.methods = []
         self.inputs = []
         self.outputs = []
         self.members = []
         self.inputOf = []
         self.outputOf = []
         self.memberOf = []
+
+    def addMethod( self, name ):
+        self.methods.append( name )
 
     def addInput( self, name ):
         self.inputs.append( name )
@@ -41,10 +46,15 @@ def getNameSpace():
         prefix += ( namespace + '::' )
     return prefix
 
-def getEntityName():
+def getRealNameSpace():
     prefix = ''
-    for namespace in currentNameSpace:
-        prefix += ( namespace + '::' )
+    for i in range( len( currentNameSpace ) ):
+        if isRealNameSpace[ i ]:
+            prefix += ( currentNameSpace[ i ] + '::' )
+    return prefix
+
+def getEntityName():
+    prefix = getNameSpace()
     if len( prefix ) > 2:
         return prefix[ : -2 ]
 
@@ -52,11 +62,32 @@ def getTypeName( word ):
     if word[ -1 ] == ';':
         word = word[ : -1 ]
 
+    if word[ 0 ] == word[ 1 ] and word[ 0 ] == ':':
+        word = word[ 2: ]
+
     if word.endswith( '::Ptr' ):
         word = word[ : -5 ]
     elif word.endswith( '::PtrConst' ):
         word = word[ : -10 ]
+
+    # check if namespace need to be append to name
+    # if it is one of the base type no need to check namespace
+    # lossy check, assume if typename does not come with any '::'
+    # it means current namespace should apply
+    if not notInterestingType( word ) and '::' not in word:
+        # append namespace to typename
+        word = getRealNameSpace() + word
+
     return word
+
+def notInterestingType( word ):
+    if word in [ 'bool', 'Tac::String', 'U32', 'U64' ]:
+        return True
+
+def addToDict( word ):
+    if word not in entityDict:
+        newEntity = entity( word )
+        entityDict[ word ] = newEntity
 
 # return extra line it read
 def skipIntro ( file ):
@@ -110,6 +141,7 @@ def isNameSpace( words ):
 
 def handleNameSpace( words ):
     currentNameSpace.append( words[ 0 ] );
+    isRealNameSpace.append( True )
 
 def isForwardDecl( words ):
     return len( words ) == 5 and words[ 2 ] == 'Tac::Type()' and\
@@ -124,6 +156,7 @@ def isEntity( words ):
 def handleEntity( words ):
     newEntity = entity( getNameSpace() + words[ 0 ] )
     currentNameSpace.append( words[ 0 ] )
+    isRealNameSpace.append( False )
     entityDict[ newEntity.name ] = newEntity
 
 def isElement( words ):
@@ -132,9 +165,25 @@ def isElement( words ):
 def handleElement( words ):
     # add current element to the entity member list
     typeName = getTypeName( words[ 2 ] )
+
+    # if it is not an interesting type, retunr
+    if notInterestingType( typeName ):
+        return
+
+    # add this type to parent's member
     entityDict[ getEntityName() ].addMember( typeName )
 
-    # check if entity is already in the map
+    # if typeName is not in entityDict, add it
+    addToDict( typeName )
+
+    # also add parent to this element's isMemberof list
+    entityDict[ typeName ].isMemberOf( getEntityName() )
+
+def isMethod( words ):
+    return len( words ) >= 4 and words[ 1 ] == ':' and '(' in words[ -1 ] and ')' in words[ -1 ]
+
+def handleMethod( words ):
+    entityDict[ getEntityName() ].addMethod( words[ 0 ] )
 
 def analyzeFile( file ):
     skipIntro( file )
@@ -142,11 +191,13 @@ def analyzeFile( file ):
     typeCheckers = [ isNameSpace,
                      isForwardDecl,
                      isEntity,
-                     isElement ]
+                     isElement,
+                     isMethod ]
     handlers = [ handleNameSpace,
                  handleForwardDecl,
                  handleEntity,
-                 handleElement ]
+                 handleElement,
+                 handleMethod ]
 
     while len( words ):
         for i in range( len( typeCheckers ) ):
@@ -156,4 +207,6 @@ def analyzeFile( file ):
         words = getCompleteLine( file )
 
 analyzeFile( file )
-print entityDict
+
+print entityDict[ 'Lacp::Agent::AgentCreator' ].members
+print entityDict[ 'Lacp::Agent::AgentCreator' ].methods
