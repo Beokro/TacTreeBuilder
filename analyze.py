@@ -5,6 +5,7 @@ filename = "../Lag/LacpAgent.tac"
 file = open(filename, "r")
 
 currentNameSpace = []
+# 1 = namespace, 0 = entity/constrainer, -1 = something else
 isRealNameSpace = []
 entityDict = {}
 
@@ -40,16 +41,22 @@ class entity:
     def isMemberOf( self, name ):
         self.memberOf.append( name )
 
+def checkOpenBracket( word ):
+    if '{' in word:
+        currentNameSpace.append( '*' )
+        isRealNameSpace.append( -1 )
+
 def getNameSpace():
     prefix = ''
     for namespace in currentNameSpace:
-        prefix += ( namespace + '::' )
+        if namespace != '*':
+            prefix += ( namespace + '::' )
     return prefix
 
 def getRealNameSpace():
     prefix = ''
     for i in range( len( currentNameSpace ) ):
-        if isRealNameSpace[ i ]:
+        if isRealNameSpace[ i ] == 1:
             prefix += ( currentNameSpace[ i ] + '::' )
     return prefix
 
@@ -140,8 +147,8 @@ def isNameSpace( words ):
     return len( words ) == 4 and words[ 2] == 'Tac::Namespace' and words[ 3 ] == '{'
 
 def handleNameSpace( words ):
-    currentNameSpace.append( words[ 0 ] );
-    isRealNameSpace.append( True )
+    currentNameSpace[ -1 ] = words[ 0 ];
+    isRealNameSpace[ -1 ] = 1
 
 def isForwardDecl( words ):
     return len( words ) == 5 and words[ 2 ] == 'Tac::Type()' and\
@@ -151,12 +158,13 @@ def handleForwardDecl( words ):
     return
 
 def isEntity( words ):
-    return len( words ) > 5 and words[ -1 ] == '{' and words[ -2 ] == 'Tac::Entity'
+    return len( words ) > 5 and words[ -1 ] == '{' and\
+        ( words[ -2 ] == 'Tac::Entity' or words[ -2 ] == 'Tac::Constrainer' )
 
 def handleEntity( words ):
     newEntity = entity( getNameSpace() + words[ 0 ] )
-    currentNameSpace.append( words[ 0 ] )
-    isRealNameSpace.append( False )
+    currentNameSpace[ -1 ] = words[ 0 ]
+    isRealNameSpace[ -1 ] =  0 
     entityDict[ newEntity.name ] = newEntity
 
 def isElement( words ):
@@ -185,6 +193,13 @@ def isMethod( words ):
 def handleMethod( words ):
     entityDict[ getEntityName() ].addMethod( words[ 0 ] )
 
+def isClose( words ):
+    return len( words ) == 1 and words[ 0 ] == '}'
+
+def handleClose( words ):
+    currentNameSpace.pop()
+    isRealNameSpace.pop()
+
 def analyzeFile( file ):
     skipIntro( file )
     words = getCompleteLine( file )
@@ -192,14 +207,18 @@ def analyzeFile( file ):
                      isForwardDecl,
                      isEntity,
                      isElement,
-                     isMethod ]
+                     isMethod,
+                     isClose ]
     handlers = [ handleNameSpace,
                  handleForwardDecl,
                  handleEntity,
                  handleElement,
-                 handleMethod ]
+                 handleMethod,
+                 handleClose ]
 
     while len( words ):
+        print words
+        checkOpenBracket( words[ -1 ] )
         for i in range( len( typeCheckers ) ):
             if typeCheckers[ i ]( words ):
                 handlers[ i ]( words )
@@ -210,3 +229,4 @@ analyzeFile( file )
 
 print entityDict[ 'Lacp::Agent::AgentCreator' ].members
 print entityDict[ 'Lacp::Agent::AgentCreator' ].methods
+print entityDict
