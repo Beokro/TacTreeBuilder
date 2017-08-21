@@ -1,5 +1,7 @@
 # Todo
 # build a relationship for the members of entity and reactor function being trigger
+# handle list as type
+# handle netity has some additional type like initital
 
 filename = "../Lag/LacpAgent.tac"
 file = open(filename, "r")
@@ -44,7 +46,7 @@ class entity:
         self.inputOf.append( name )
 
     def isOutputOf( self, name ):
-        self.OutputOf.append( name )
+        self.outputOf.append( name )
 
     def isMemberOf( self, name ):
         self.memberOf.append( name )
@@ -56,7 +58,7 @@ class entity:
         str += printHelper( 'Output', self.outputs )
         str += printHelper( 'Member', self.members )
         str += printHelper( 'InputOf', self.inputOf )
-        str += printHelper( 'Output', self.outputOf )
+        str += printHelper( 'OutputOf', self.outputOf )
         str += printHelper( 'isMemberOf', self.memberOf )
         return str
 
@@ -159,6 +161,10 @@ def getCompleteLine( file ):
     while words[ -1 ][ -1 ] == ',' or words[ -1 ][ -1 ] == ':' or incompleteType( words ):
         line = file.readline()
         words.extend( line.split() )
+
+    # remove unnecessary word from words
+    if 'embedded' in words:
+        words.remove( 'embedded' )
     return words
 
 def isNameSpace( words ):
@@ -187,6 +193,7 @@ def handleEntity( words ):
     entityDict[ newEntity.name ] = newEntity
 
 def isElement( words ):
+    # need to handle assign and initially case
     return len( words ) == 3 and words[ 1 ] == ':'
 
 def handleElement( words ):
@@ -219,6 +226,65 @@ def handleClose( words ):
     currentNameSpace.pop()
     isRealNameSpace.pop()
 
+def isInput( words ):
+    return len( words ) >= 3 and words[ 1 ] == ':' and words[ 2 ] == 'in'
+
+def handleInput( words ):
+    typeName = getTypeName( words[ 3 ] )
+
+    # if it is not an interesting type, return
+    # Todo, think about this, maybe a bool is a input
+    # if that is the case, need to handle namespace properly
+    if notInterestingType( typeName ):
+        return
+
+    entityDict[ getEntityName() ].addInput( typeName )
+
+    # if typeName is not in entityDict, add it
+    addToDict( typeName )
+
+    entityDict[ typeName ].isInputOf( getEntityName() )
+
+def isOutput( words ):
+    return len( words ) >= 3 and words[ 1 ] == ':' and words[ 2 ] == 'out'
+
+def handleOutput( words ):
+    typeName = getTypeName( words[ 3 ] )
+
+    # if it is not an interesting type, return
+    # same as input
+    if notInterestingType( typeName ):
+        return
+
+    entityDict[ getEntityName() ].addOutput( typeName )
+
+    # if typeName is not in entityDict, add it
+    addToDict( typeName )
+
+    entityDict[ typeName ].isOutputOf( getEntityName() )
+
+def isInOut( words ):
+    return len( words ) >= 3 and words[ 1 ] == ':' and words[ 2 ] == 'inout'
+
+def handleOutput( words ):
+    typeName = getTypeName( words[ 3 ] )
+
+    # if it is not an interesting type, return
+    # same as input
+    if notInterestingType( typeName ):
+        return
+
+    # add this type to parent's input and output
+    entityDict[ getEntityName() ].addInput( typeName )
+    entityDict[ getEntityName() ].addOutput( typeName )
+
+    # if typeName is not in entityDict, add it
+    addToDict( typeName )
+
+    entityDict[ typeName ].isInputOf( getEntityName() )
+    entityDict[ typeName ].isOutputOf( getEntityName() )
+
+
 def analyzeFile( file ):
     skipIntro( file )
     words = getCompleteLine( file )
@@ -227,13 +293,17 @@ def analyzeFile( file ):
                      isEntity,
                      isElement,
                      isMethod,
-                     isClose ]
+                     isClose,
+                     isInput,
+                     isOutput ]
     handlers = [ handleNameSpace,
                  handleForwardDecl,
                  handleEntity,
                  handleElement,
                  handleMethod,
-                 handleClose ]
+                 handleClose,
+                 handleInput,
+                 handleOutput ]
 
     while len( words ):
         print words
@@ -247,3 +317,4 @@ def analyzeFile( file ):
 analyzeFile( file )
 
 print entityDict[ 'Lacp::Agent::AgentCreator' ]
+print entityDict[ 'Lacp::Agent::LacpFastBootProgressSm' ]
